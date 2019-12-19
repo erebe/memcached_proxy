@@ -2,8 +2,8 @@ use bytes::{Bytes, BytesMut};
 
 pub const HEADER_LEN_BYTES: usize = 24;
 
-#[allow(dead_code)]
 #[repr(u8)]
+#[derive(FromPrimitive, Debug)]
 pub enum Opcode {
     Get = 0x00,
     Set = 0x01,
@@ -66,7 +66,7 @@ pub enum Opcode {
 }
 
 #[repr(u8)]
-#[derive(FromPrimitive, Debug)]
+#[derive(FromPrimitive, ToPrimitive, Debug)]
 pub enum Magic {
     Request = 0x80,
     Response = 0x81,

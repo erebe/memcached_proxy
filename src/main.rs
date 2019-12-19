@@ -35,8 +35,10 @@ use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::{Framed, LinesCodec};
 
-use crate::memcached_codec::MemcachedBinaryCodec;
-use futures::future::try_join;
+use crate::memcached_codec::{MemcachedBinaryCodec, MemcachedBinaryCodecError};
+use crate::protocol::memcached_binary::{Magic, PacketHeader};
+use bytes::Bytes;
+use futures::future::{try_join, IntoFuture};
 use futures::FutureExt;
 use std::env;
 use std::error::Error;
@@ -69,12 +71,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 async fn transfer(mut inbound: TcpStream, proxy_addr: String) -> Result<(), Box<dyn Error>> {
-    let mut requests = Framed::new(inbound, MemcachedBinaryCodec::new());
+    let mut transport: Framed<TcpStream, MemcachedBinaryCodec> =
+        Framed::new(inbound, MemcachedBinaryCodec::new());
 
-    while let Some(result) = requests.next().await {
+    while let Some(result) =
+        transport.next().await as Option<Result<PacketHeader, MemcachedBinaryCodecError>>
+    {
         match result {
-            Ok(request) => {
-                println!("{:?}", request);
+            Ok(requestt) => {
+                let mut request = requestt.clone();
+                request.magic = 0x81;
+                request.extras_length = 0;
+                request.total_body_length = 0;
+                request.key_length = 0;
+                request.vbucket_id_or_status = 0;
+                transport.send(request).await.unwrap();
             }
             Err(e) => {
                 println!("error on decoding from socket; error = {:?}", e);
